@@ -125,8 +125,8 @@ struct Skill {
     Move   best = MOVE_NONE;
 };
 
-template<NodeType nodeType>
-Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
+template<NodeType nodeType, bool cutNode>
+Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth);
 
 template<NodeType nodeType>
 Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
@@ -383,7 +383,7 @@ void Thread::search() {
                 // for every four searchAgain steps (see issue #2717).
                 Depth adjustedDepth =
                   std::max(1, rootDepth - failedHighCnt - 3 * (searchAgainCounter + 1) / 4);
-                bestValue = Stockfish::search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false);
+                bestValue = Stockfish::search<Root, false>(rootPos, ss, alpha, beta, adjustedDepth);
 
                 // Bring the best move to the front. It is critical that sorting
                 // is done with a stable algorithm because all the values but the
@@ -518,8 +518,8 @@ void Thread::search() {
 namespace {
 
 // Main search function for both PV and non-PV nodes
-template<NodeType nodeType>
-Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode) {
+template<NodeType nodeType, bool cutNode>
+Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
 
     constexpr bool PvNode   = nodeType != NonPV;
     constexpr bool rootNode = nodeType == Root;
@@ -540,7 +540,7 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
     assert(PvNode || (alpha == beta - 1));
     assert(0 < depth && depth < MAX_PLY);
-    assert(!(PvNode && cutNode));
+    static_assert(!(PvNode && cutNode));
 
     Move      pv[MAX_PLY + 1], capturesSearched[32], quietsSearched[32];
     StateInfo st;
@@ -805,7 +805,7 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
 
         pos.do_null_move(st);
 
-        Value nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, !cutNode);
+        Value nullValue = -search<NonPV, !cutNode>(pos, ss + 1, -beta, -beta + 1, depth - R);
 
         pos.undo_null_move();
 
@@ -821,7 +821,7 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
             // until ply exceeds nmpMinPly.
             thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Value v = search<NonPV, false>(pos, ss, beta - 1, beta, depth - R);
 
             thisThread->nmpMinPly = 0;
 
@@ -879,8 +879,7 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
 
                 // If the qsearch held, perform the regular search
                 if (value >= probCutBeta)
-                    value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, depth - 4,
-                                           !cutNode);
+                    value = -search<NonPV, !cutNode>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, depth - 4);
 
                 pos.undo_move(move);
 
@@ -1047,7 +1046,7 @@ moves_loop:  // When in check, search starts here
 
                 ss->excludedMove = move;
                 value =
-                  search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+                  search<NonPV, cutNode>(pos, ss, singularBeta - 1, singularBeta, singularDepth);
                 ss->excludedMove = MOVE_NONE;
 
                 if (value < singularBeta)
@@ -1165,7 +1164,7 @@ moves_loop:  // When in check, search starts here
             // beyond the first move depth. This may lead to hidden double extensions.
             Depth d = std::clamp(newDepth - r, 1, newDepth + 1);
 
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+            value = -search<NonPV, true>(pos, ss + 1, -(alpha + 1), -alpha, d);
 
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
@@ -1181,7 +1180,7 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch + doEvenDeeperSearch;
 
                 if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    value = -search<NonPV, !cutNode>(pos, ss + 1, -(alpha + 1), -alpha, newDepth);
 
                 int bonus = value <= alpha ? -stat_bonus(newDepth)
                           : value >= beta  ? stat_bonus(newDepth)
@@ -1199,7 +1198,7 @@ moves_loop:  // When in check, search starts here
                 r += 2;
 
             // Note that if expected reduction is high, we reduce search depth by 1 here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth - (r > 3), !cutNode);
+            value = -search<NonPV, !cutNode>(pos, ss + 1, -(alpha + 1), -alpha, newDepth - (r > 3));
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
@@ -1209,7 +1208,7 @@ moves_loop:  // When in check, search starts here
             (ss + 1)->pv    = pv;
             (ss + 1)->pv[0] = MOVE_NONE;
 
-            value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            value = -search<PV, false>(pos, ss + 1, -beta, -alpha, newDepth);
         }
 
         // Step 19. Undo move
