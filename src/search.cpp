@@ -1603,12 +1603,6 @@ Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
                 }
             }
 
-            // We prune after the second quiet check evasion move, where being 'in check' is
-            // implicitly checked through the counter, and being a 'quiet move' apart from
-            // being a tt move is assumed after an increment because captures are pushed ahead.
-            if (quietCheckEvasions > 1)
-                break;
-
             // Continuation history based pruning (~3 Elo)
             if (!capture && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < 0
                 && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0)
@@ -1655,6 +1649,13 @@ Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
                     break;  // Fail high
             }
         }
+        
+        // We prune after the second quiet check evasion move, where being 'in check' is
+        // implicitly checked through the counter, and being a 'quiet move' apart from
+        // being a tt move is assumed after an increment because captures are pushed ahead.
+        if (quietCheckEvasions > 1)
+            if (bestValue > VALUE_TB_LOSS_IN_MAX_PLY && pos.non_pawn_material(us))
+                break;
     }
 
     // Step 9. Check for mate
