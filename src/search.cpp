@@ -1209,7 +1209,7 @@ moves_loop:  // When in check, search starts here
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r, newDepth + 1));
 
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, d < newDepth || !cutNode);
 
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
