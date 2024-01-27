@@ -1128,6 +1128,9 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r++;
 
+        if (mp.get_stage() == BAD_CAPTURE)
+            r++;
+
         // Decrease reduction for PvNodes (~3 Elo)
         if (PvNode && tte->bound() != BOUND_UPPER)
             r--;
