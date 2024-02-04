@@ -147,12 +147,12 @@ void MovePicker::score() {
 
     static_assert(Type == CAPTURES || Type == QUIETS || Type == EVASIONS, "Wrong type");
 
+    Color us = pos.side_to_move();
+
     [[maybe_unused]] Bitboard threatenedByPawn, threatenedByMinor, threatenedByRook,
       threatenedPieces;
     if constexpr (Type == QUIETS)
     {
-        Color us = pos.side_to_move();
-
         threatenedByPawn = pos.attacks_by<PAWN>(~us);
         threatenedByMinor =
           pos.attacks_by<KNIGHT>(~us) | pos.attacks_by<BISHOP>(~us) | threatenedByPawn;
@@ -189,6 +189,13 @@ void MovePicker::score() {
 
             // bonus for checks
             m.value += bool(pos.check_squares(pt) & to) * 16384;
+
+            // bonus for discovered checks
+            if (pos.blockers_for_king(~us) & from) {
+                Bitboard line = line_bb(from, pos.square<KING>(~us));
+                if (!(line & to))
+                    m.value += 16384;
+            }
 
             // bonus for escaping from capture
             m.value += threatenedPieces & from ? (pt == QUEEN && !(to & threatenedByRook)   ? 50000
