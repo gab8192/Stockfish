@@ -1160,7 +1160,7 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                if (!rootNode) {
+                if (ss->ply >= 2) {
                     // Adjust full-depth search based on LMR results - if the result
                     // was good enough search deeper, if it was bad enough search shallower.
                     const bool doDeeperSearch    = value > (bestValue + 49 + 2 * newDepth);  // (~1 Elo)
