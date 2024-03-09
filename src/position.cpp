@@ -1038,7 +1038,7 @@ bool Position::see_ge(Move m, int threshold) const {
 
     // Only deal with normal moves, assume others pass a simple SEE
     if (m.type_of() != NORMAL)
-        return VALUE_ZERO >= threshold;
+        return m.type_of() == PROMOTION || VALUE_ZERO >= threshold;
 
     Square from = m.from_sq(), to = m.to_sq();
 
