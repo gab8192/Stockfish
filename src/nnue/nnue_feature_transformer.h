@@ -681,7 +681,7 @@ class FeatureTransformer {
         // Could be extracted to a separate function because it's done in 2 places,
         // but it's unclear if compilers would correctly handle register allocation.
         auto& accumulator                     = pos.state()->*accPtr;
-        accumulator.computed[Perspective]     = !psqtOnly;
+        accumulator.computed[Perspective]     = true;
         accumulator.computedPSQT[Perspective] = true;
 
         FeatureSet::IndexList removed, added;
@@ -706,35 +706,34 @@ class FeatureTransformer {
 
 #ifdef VECTOR
 
-        if (!psqtOnly)
-            for (IndexType j = 0; j < HalfDimensions / TileHeight; ++j)
+        for (IndexType j = 0; j < HalfDimensions / TileHeight; ++j)
+        {
+            auto entryTile = reinterpret_cast<vec_t*>(&entryAccumulation[j * TileHeight]);
+            for (IndexType k = 0; k < NumRegs; ++k)
+                acc[k] = entryTile[k];
+
+            for (int i = 0; i < int(added.size()); ++i)
             {
-                auto entryTile = reinterpret_cast<vec_t*>(&entryAccumulation[j * TileHeight]);
-                for (IndexType k = 0; k < NumRegs; ++k)
-                    acc[k] = entryTile[k];
+                IndexType       index  = added[i];
+                const IndexType offset = HalfDimensions * index + j * TileHeight;
+                auto            column = reinterpret_cast<const vec_t*>(&weights[offset]);
 
-                for (int i = 0; i < int(added.size()); ++i)
-                {
-                    IndexType       index  = added[i];
-                    const IndexType offset = HalfDimensions * index + j * TileHeight;
-                    auto            column = reinterpret_cast<const vec_t*>(&weights[offset]);
-
-                    for (unsigned k = 0; k < NumRegs; ++k)
-                        acc[k] = vec_add_16(acc[k], column[k]);
-                }
-                for (int i = 0; i < int(removed.size()); ++i)
-                {
-                    IndexType       index  = removed[i];
-                    const IndexType offset = HalfDimensions * index + j * TileHeight;
-                    auto            column = reinterpret_cast<const vec_t*>(&weights[offset]);
-
-                    for (unsigned k = 0; k < NumRegs; ++k)
-                        acc[k] = vec_sub_16(acc[k], column[k]);
-                }
-
-                for (IndexType k = 0; k < NumRegs; k++)
-                    vec_store(&entryTile[k], acc[k]);
+                for (unsigned k = 0; k < NumRegs; ++k)
+                    acc[k] = vec_add_16(acc[k], column[k]);
             }
+            for (int i = 0; i < int(removed.size()); ++i)
+            {
+                IndexType       index  = removed[i];
+                const IndexType offset = HalfDimensions * index + j * TileHeight;
+                auto            column = reinterpret_cast<const vec_t*>(&weights[offset]);
+
+                for (unsigned k = 0; k < NumRegs; ++k)
+                    acc[k] = vec_sub_16(acc[k], column[k]);
+            }
+
+            for (IndexType k = 0; k < NumRegs; k++)
+                vec_store(&entryTile[k], acc[k]);
+        }
 
         for (IndexType j = 0; j < PSQTBuckets / PsqtTileHeight; ++j)
         {
@@ -769,12 +768,9 @@ class FeatureTransformer {
 
         for (const auto index : added)
         {
-            if (!psqtOnly)
-            {
-                const IndexType offset = HalfDimensions * index;
-                for (IndexType j = 0; j < HalfDimensions; ++j)
-                    entry.acc.accumulation[Perspective][j] += weights[offset + j];
-            }
+            const IndexType offset = HalfDimensions * index;
+            for (IndexType j = 0; j < HalfDimensions; ++j)
+                entry.acc.accumulation[Perspective][j] += weights[offset + j];
 
             for (std::size_t k = 0; k < PSQTBuckets; ++k)
                 entry.acc.psqtAccumulation[Perspective][k] +=
@@ -782,12 +778,9 @@ class FeatureTransformer {
         }
         for (const auto index : removed)
         {
-            if (!psqtOnly)
-            {
-                const IndexType offset = HalfDimensions * index;
-                for (IndexType j = 0; j < HalfDimensions; ++j)
-                    entry.acc.accumulation[Perspective][j] -= weights[offset + j];
-            }
+            const IndexType offset = HalfDimensions * index;
+            for (IndexType j = 0; j < HalfDimensions; ++j)
+                entry.acc.accumulation[Perspective][j] -= weights[offset + j];
 
             for (std::size_t k = 0; k < PSQTBuckets; ++k)
                 entry.acc.psqtAccumulation[Perspective][k] -=
