@@ -664,8 +664,18 @@ class FeatureTransformer {
 
         assert(HalfDimensions == TransformedFeatureDimensionsBig);
 
+#ifdef VECTOR
+        // Gcc-10.2 unnecessarily spills AVX2 registers if this array
+        // is defined in the VECTOR code below, once in each branch
+        vec_t      acc[NumRegs];
+        psqt_vec_t psqt[NumPsqtRegs];
+#endif
+
         Square   ksq = pos.square<KING>(Perspective);
         FinnyEntry& entry = pos.finnyTable[ksq];
+
+        int16_t* entryAccumulation = entry.acc.accumulation[Perspective];
+        int32_t* entryPsqtAccumulation = entry.acc.psqtAccumulation[Perspective];
 
         // Refresh the accumulator
         // Could be extracted to a separate function because it's done in 2 places,
@@ -694,6 +704,69 @@ class FeatureTransformer {
             }
         }
 
+#ifdef VECTOR
+
+        if (!psqtOnly)
+            for (IndexType j = 0; j < HalfDimensions / TileHeight; ++j)
+            {
+                auto entryTile = reinterpret_cast<vec_t*>(&entryAccumulation[j * TileHeight]);
+                for (IndexType k = 0; k < NumRegs; ++k)
+                    acc[k] = entryTile[k];
+
+                for (int i = 0; i < int(added.size()); ++i)
+                {
+                    IndexType       index  = added[i];
+                    const IndexType offset = HalfDimensions * index + j * TileHeight;
+                    auto            column = reinterpret_cast<const vec_t*>(&weights[offset]);
+
+                    for (unsigned k = 0; k < NumRegs; ++k)
+                        acc[k] = vec_add_16(acc[k], column[k]);
+                }
+                for (int i = 0; i < int(removed.size()); ++i)
+                {
+                    IndexType       index  = removed[i];
+                    const IndexType offset = HalfDimensions * index + j * TileHeight;
+                    auto            column = reinterpret_cast<const vec_t*>(&weights[offset]);
+
+                    for (unsigned k = 0; k < NumRegs; ++k)
+                        acc[k] = vec_sub_16(acc[k], column[k]);
+                }
+
+                for (IndexType k = 0; k < NumRegs; k++)
+                    vec_store(&entryTile[k], acc[k]);
+            }
+
+        for (IndexType j = 0; j < PSQTBuckets / PsqtTileHeight; ++j)
+        {
+            auto entryTilePsqt = reinterpret_cast<psqt_vec_t*>(&entryPsqtAccumulation[j * PsqtTileHeight]);
+            for (std::size_t k = 0; k < NumPsqtRegs; ++k)
+                psqt[k] = entryTilePsqt[k];
+
+            for (int i = 0; i < int(added.size()); ++i)
+            {
+                IndexType       index  = added[i];
+                const IndexType offset = PSQTBuckets * index + j * PsqtTileHeight;
+                auto columnPsqt        = reinterpret_cast<const psqt_vec_t*>(&psqtWeights[offset]);
+
+                for (std::size_t k = 0; k < NumPsqtRegs; ++k)
+                    psqt[k] = vec_add_psqt_32(psqt[k], columnPsqt[k]);
+            }
+            for (int i = 0; i < int(removed.size()); ++i)
+            {
+                IndexType       index  = removed[i];
+                const IndexType offset = PSQTBuckets * index + j * PsqtTileHeight;
+                auto columnPsqt        = reinterpret_cast<const psqt_vec_t*>(&psqtWeights[offset]);
+
+                for (std::size_t k = 0; k < NumPsqtRegs; ++k)
+                    psqt[k] = vec_sub_psqt_32(psqt[k], columnPsqt[k]);
+            }
+
+            for (std::size_t k = 0; k < NumPsqtRegs; ++k)
+                vec_store_psqt(&entryTilePsqt[k], psqt[k]);
+        }
+
+#else
+
         for (const auto index : added)
         {
             if (!psqtOnly)
@@ -705,7 +778,7 @@ class FeatureTransformer {
 
             for (std::size_t k = 0; k < PSQTBuckets; ++k)
                 entry.acc.psqtAccumulation[Perspective][k] +=
-                  psqtWeights[index * PSQTBuckets + k];
+                psqtWeights[index * PSQTBuckets + k];
         }
         for (const auto index : removed)
         {
@@ -718,8 +791,10 @@ class FeatureTransformer {
 
             for (std::size_t k = 0; k < PSQTBuckets; ++k)
                 entry.acc.psqtAccumulation[Perspective][k] -=
-                  psqtWeights[index * PSQTBuckets + k];
+                psqtWeights[index * PSQTBuckets + k];
         }
+
+#endif
 
         std::memcpy(accumulator.psqtAccumulation[Perspective],
                     entry.acc.psqtAccumulation[Perspective],
