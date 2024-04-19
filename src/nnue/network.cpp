@@ -184,7 +184,6 @@ bool Network<Arch, Transformer>::save(const std::optional<std::string>& filename
     return saved;
 }
 
-
 template<typename Arch, typename Transformer>
 Value Network<Arch, Transformer>::evaluate(const Position& pos,
                                            bool            adjusted,

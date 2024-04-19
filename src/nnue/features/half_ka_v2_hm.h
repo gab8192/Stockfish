@@ -28,8 +28,12 @@
 #include "../nnue_common.h"
 
 namespace Stockfish {
-struct StateInfo;
-class Position;
+  struct StateInfo;
+  class Position;
+
+  namespace Eval::NNUE {
+    struct FinnyEntry;
+  }
 }
 
 namespace Stockfish::Eval::NNUE::Features {
@@ -62,10 +66,6 @@ class HalfKAv2_hm {
        PS_NONE, PS_B_PAWN, PS_B_KNIGHT, PS_B_BISHOP, PS_B_ROOK, PS_B_QUEEN, PS_KING, PS_NONE},
       {PS_NONE, PS_B_PAWN, PS_B_KNIGHT, PS_B_BISHOP, PS_B_ROOK, PS_B_QUEEN, PS_KING, PS_NONE,
        PS_NONE, PS_W_PAWN, PS_W_KNIGHT, PS_W_BISHOP, PS_W_ROOK, PS_W_QUEEN, PS_KING, PS_NONE}};
-
-    // Index of a feature for a given king position and another piece on some square
-    template<Color Perspective>
-    static IndexType make_index(Square s, Piece pc, Square ksq);
 
    public:
     // Feature name
@@ -125,6 +125,10 @@ class HalfKAv2_hm {
     // Maximum number of simultaneously active features.
     static constexpr IndexType MaxActiveDimensions = 32;
     using IndexList                                = ValueList<IndexType, MaxActiveDimensions>;
+
+    // Index of a feature for a given king position and another piece on some square
+    template<Color Perspective>
+    static IndexType make_index(Square s, Piece pc, Square ksq);
 
     // Get a list of indices for active features
     template<Color Perspective>

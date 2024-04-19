@@ -37,6 +37,12 @@ struct alignas(CacheLineSize) Accumulator {
     bool         computedPSQT[2];
 };
 
+struct FinnyEntry {
+  Bitboard byColorBB[2][2];
+  Bitboard byPieceBB[2][8];
+  Accumulator<TransformedFeatureDimensionsBig> acc;
+};
+
 }  // namespace Stockfish::Eval::NNUE
 
 #endif  // NNUE_ACCUMULATOR_H_INCLUDED

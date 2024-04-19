@@ -51,7 +51,6 @@ class Network {
     void load(const std::string& rootDirectory, std::string evalfilePath);
     bool save(const std::optional<std::string>& filename) const;
 
-
     Value evaluate(const Position& pos,
                    bool            adjusted   = false,
                    int*            complexity = nullptr,
@@ -62,6 +61,9 @@ class Network {
 
     void          verify(std::string evalfilePath) const;
     NnueEvalTrace trace_evaluate(const Position& pos) const;
+
+    // Input feature converter
+    LargePagePtr<Transformer> featureTransformer;
 
    private:
     void load_user_net(const std::string&, const std::string&);
@@ -77,9 +79,6 @@ class Network {
 
     bool read_parameters(std::istream&, std::string&) const;
     bool write_parameters(std::ostream&, const std::string&) const;
-
-    // Input feature converter
-    LargePagePtr<Transformer> featureTransformer;
 
     // Evaluation function
     AlignedPtr<Arch> network[LayerStacks];

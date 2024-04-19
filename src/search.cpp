@@ -216,6 +216,15 @@ void Search::Worker::start_searching() {
 // consumed, the user stops the search, or the maximum search depth is reached.
 void Search::Worker::iterative_deepening() {
 
+    // Init finny entries
+
+    // Reset finny tables
+    for (int i = 0; i < SQUARE_NB; i++) {
+        memset(rootPos.finnyTable[i].byColorBB, 0, 2 * 2 * sizeof(Bitboard));
+        memset(rootPos.finnyTable[i].byColorBB, 0, 2 * 2 * sizeof(Bitboard));
+        networks.big.featureTransformer->init_finny_entry(rootPos.finnyTable[i]);
+    }
+
     SearchManager* mainThread = (is_mainthread() ? main_manager() : nullptr);
 
     Move pv[MAX_PLY + 1];
