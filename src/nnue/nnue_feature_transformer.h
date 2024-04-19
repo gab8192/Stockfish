@@ -678,7 +678,7 @@ class FeatureTransformer {
         for (Color c = WHITE; c <= BLACK; c = Color(int(c)+1)) {
             for (PieceType pt = PAWN; pt <= KING; ++pt) {
                 const Piece piece = make_piece(c, pt);
-                const Bitboard oldBB = entry.byColorBB[Perspective][c] & entry.byPieceBB[Perspective][pt];
+                const Bitboard oldBB = entry.byColorBB[Perspective][c] & entry.byTypeBB[Perspective][pt];
                 const Bitboard newBB = pos.pieces(c, pt);
                 Bitboard toRemove = oldBB & ~newBB;
                 Bitboard toAdd = newBB & ~oldBB;
@@ -694,26 +694,43 @@ class FeatureTransformer {
             }
         }
 
-        if (!psqtOnly)
-            std::memcpy(accumulator.accumulation[Perspective], biases,
-                        HalfDimensions * sizeof(BiasType));
-
-        for (std::size_t k = 0; k < PSQTBuckets; ++k)
-            accumulator.psqtAccumulation[Perspective][k] = 0;
-
         for (const auto index : added)
         {
             if (!psqtOnly)
             {
                 const IndexType offset = HalfDimensions * index;
                 for (IndexType j = 0; j < HalfDimensions; ++j)
-                    accumulator.accumulation[Perspective][j] += weights[offset + j];
+                    entry.acc.accumulation[Perspective][j] += weights[offset + j];
             }
 
             for (std::size_t k = 0; k < PSQTBuckets; ++k)
-                accumulator.psqtAccumulation[Perspective][k] +=
+                entry.acc.psqtAccumulation[Perspective][k] +=
                   psqtWeights[index * PSQTBuckets + k];
         }
+        for (const auto index : removed)
+        {
+            if (!psqtOnly)
+            {
+                const IndexType offset = HalfDimensions * index;
+                for (IndexType j = 0; j < HalfDimensions; ++j)
+                    entry.acc.accumulation[Perspective][j] -= weights[offset + j];
+            }
+
+            for (std::size_t k = 0; k < PSQTBuckets; ++k)
+                entry.acc.psqtAccumulation[Perspective][k] -=
+                  psqtWeights[index * PSQTBuckets + k];
+        }
+
+        std::memcpy(accumulator.psqtAccumulation[Perspective],
+                    entry.acc.psqtAccumulation[Perspective],
+                    sizeof(int32_t) * PSQTBuckets);
+
+        std::memcpy(accumulator.accumulation[Perspective],
+                    entry.acc.accumulation[Perspective],
+                    sizeof(int16_t) * HalfDimensions);
+
+        std::memcpy(entry.byColorBB[Perspective], pos.finny_byColorBB(), 2 * sizeof(Bitboard));
+        std::memcpy(entry.byTypeBB[Perspective], pos.finny_byTypeBB(), 8 * sizeof(Bitboard));
     }
 
     template<Color Perspective>

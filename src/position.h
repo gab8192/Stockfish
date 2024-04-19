@@ -175,6 +175,14 @@ class Position {
     // Used by NNUE
     Eval::NNUE::FinnyEntry finnyTable[SQUARE_NB];
 
+    Bitboard* finny_byTypeBB() {
+        return byTypeBB;
+    }
+
+    Bitboard* finny_byColorBB() {
+        return byColorBB;
+    }
+
    private:
     // Initialization helpers (used while setting up a position)
     void set_castling_right(Color c, Square rfrom);

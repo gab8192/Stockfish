@@ -39,7 +39,7 @@ struct alignas(CacheLineSize) Accumulator {
 
 struct FinnyEntry {
   Bitboard byColorBB[2][2];
-  Bitboard byPieceBB[2][8];
+  Bitboard byTypeBB[2][8];
   Accumulator<TransformedFeatureDimensionsBig> acc;
 };
 
