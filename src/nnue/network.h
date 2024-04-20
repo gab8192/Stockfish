@@ -105,12 +105,10 @@ using NetworkSmall = Network<SmallNetworkArchitecture, SmallFeatureTransformer>;
 
 
 struct Networks {
-    Networks(NetworkBig&& nB, NetworkSmall&& nS) :
-        big(std::move(nB)),
-        small(std::move(nS)) {}
+    Networks(NetworkBig&& nB) :
+        big(std::move(nB)) {}
 
     NetworkBig   big;
-    NetworkSmall small;
 };
 
 

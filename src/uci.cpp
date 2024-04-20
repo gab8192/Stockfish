@@ -80,8 +80,7 @@ UCIEngine::UCIEngine(int argc, char** argv) :
     options["SyzygyProbeLimit"] << Option(7, 0, 7);
     options["EvalFile"] << Option(EvalFileDefaultNameBig,
                                   [this](const Option& o) { engine.load_big_network(o); });
-    options["EvalFileSmall"] << Option(EvalFileDefaultNameSmall,
-                                       [this](const Option& o) { engine.load_small_network(o); });
+    options["EvalFileSmall"] << Option(EvalFileDefaultNameSmall);
 
 
     engine.set_on_iter([](const auto& i) { on_iter(i); });
