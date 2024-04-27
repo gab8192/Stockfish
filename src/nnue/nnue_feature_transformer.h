@@ -383,12 +383,42 @@ class FeatureTransformer {
 
    private:
     template<Color Perspective>
+    int refresh_cost_finny(const Position& pos,
+                           AccumulatorCaches::Cache<HalfDimensions>* cache) const {
+
+        if (HalfDimensions == Eval::NNUE::TransformedFeatureDimensionsSmall)
+            return pos.count<ALL_PIECES>();
+
+        Square ksq = pos.square<KING>(Perspective);
+
+        auto& entry = (*cache)[ksq];
+
+        int updates = 0;
+
+        for (Color c : {WHITE, BLACK})
+        {
+            for (PieceType pt = PAWN; pt <= KING; ++pt)
+            {
+                const Bitboard oldBB =
+                  entry.byColorBB[Perspective][c] & entry.byTypeBB[Perspective][pt];
+                const Bitboard newBB    = pos.pieces(c, pt);
+
+                updates += popcount(newBB ^ oldBB);
+            }
+        }
+
+        return updates;
+    }
+
+    template<Color Perspective>
     [[nodiscard]] std::pair<StateInfo*, StateInfo*>
-    try_find_computed_accumulator(const Position& pos, bool psqtOnly) const {
+    try_find_computed_accumulator(const Position& pos,
+                                  AccumulatorCaches::Cache<HalfDimensions>* cache,
+                                 bool psqtOnly) const {
         // Look for a usable accumulator of an earlier position. We keep track
         // of the estimated gain in terms of features to be added/subtracted.
         StateInfo *st = pos.state(), *next = nullptr;
-        int        gain = FeatureSet::refresh_cost(pos);
+        int        gain = refresh_cost_finny<Perspective>(pos, cache);
         while (st->previous
                && (!(st->*accPtr).computedPSQT[Perspective]
                    || (!psqtOnly && !(st->*accPtr).computed[Perspective])))
@@ -937,7 +967,7 @@ class FeatureTransformer {
             || (psqtOnly && (pos.state()->*accPtr).computedPSQT[Perspective]))
             return;
 
-        auto [oldest_st, _] = try_find_computed_accumulator<Perspective>(pos, psqtOnly);
+        auto [oldest_st, _] = try_find_computed_accumulator<Perspective>(pos, cache, psqtOnly);
 
         if ((oldest_st->*accPtr).computed[Perspective]
             || (psqtOnly && (oldest_st->*accPtr).computedPSQT[Perspective]))
@@ -956,7 +986,7 @@ class FeatureTransformer {
                             AccumulatorCaches::Cache<HalfDimensions>* cache,
                             bool                                      psqtOnly) const {
 
-        auto [oldest_st, next] = try_find_computed_accumulator<Perspective>(pos, psqtOnly);
+        auto [oldest_st, next] = try_find_computed_accumulator<Perspective>(pos, cache, psqtOnly);
 
         if ((oldest_st->*accPtr).computed[Perspective]
             || (psqtOnly && (oldest_st->*accPtr).computedPSQT[Perspective]))
