@@ -457,13 +457,10 @@ class FeatureTransformer {
         // Look for a usable accumulator of an earlier position. We keep track
         // of the estimated gain in terms of features to be added/subtracted.
         StateInfo* st   = pos.state();
-        int        gain = FeatureSet::refresh_cost(pos);
         while (st->previous && !(st->*accPtr).computed[Perspective])
         {
-            // This governs when a full feature refresh is needed and how many
-            // updates are better than just one full refresh.
-            if (FeatureSet::requires_refresh(st, Perspective)
-                || (gain -= FeatureSet::update_cost(st) + 1) < 0)
+            // This governs when a full feature refresh is needed
+            if (FeatureSet::requires_refresh(st, Perspective))
                 break;
             st = st->previous;
         }
@@ -487,9 +484,6 @@ class FeatureTransformer {
         const Square ksq = pos.square<KING>(Perspective);
 
         // The size must be enough to contain the largest possible update.
-        // That might depend on the feature set and generally relies on the
-        // feature set's update cost calculation to be correct and never allow
-        // updates with more added/removed features than MaxActiveDimensions.
         FeatureSet::IndexList removed, added;
 
         if constexpr (CurrentOnly)
