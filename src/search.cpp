@@ -34,7 +34,6 @@
 #include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
-#include "nnue/evaluate_nnue.h"
 
 namespace Stockfish {
 
@@ -194,8 +193,6 @@ void MainThread::search() {
   Color us = rootPos.side_to_move();
   Time.init(Limits, us, rootPos.game_ply());
   TT.new_search();
-
-  Eval::NNUE::verify();
 
   if (rootMoves.empty())
   {
@@ -713,8 +710,6 @@ namespace {
     }
     else if (excludedMove)
     {
-        // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
-        Eval::NNUE::hint_common_parent_position(pos);
         eval = ss->staticEval;
     }
     else if (ss->ttHit)
@@ -723,8 +718,6 @@ namespace {
         ss->staticEval = eval = tte->eval();
         if (eval == VALUE_NONE)
             ss->staticEval = eval = evaluate(pos);
-        else if (PvNode)
-            Eval::NNUE::hint_common_parent_position(pos);
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -885,8 +878,6 @@ namespace {
                     return value;
                 }
             }
-
-        Eval::NNUE::hint_common_parent_position(pos);
     }
 
 moves_loop: // When in check, search starts here
@@ -1915,7 +1906,6 @@ string UCI::pv(const Position& pos, Depth depth) {
 bool RootMove::extract_ponder_from_tt(Position& pos) {
 
     StateInfo st;
-    ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
 
     bool ttHit;
 

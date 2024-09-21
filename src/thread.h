@@ -27,7 +27,6 @@
 
 #include "material.h"
 #include "movepick.h"
-#include "pawns.h"
 #include "position.h"
 #include "search.h"
 #include "thread_win32_osx.h"
@@ -57,7 +56,6 @@ public:
   void wait_for_search_finished();
   size_t id() const { return idx; }
 
-  Pawns::Table pawnsTable;
   Material::Table materialTable;
   size_t pvIdx, pvLast;
   std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;

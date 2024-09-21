@@ -29,7 +29,7 @@
 #include "psqt.h"
 #include "types.h"
 
-#include "nnue/nnue_accumulator.h"
+#include "nnue.h"
 
 namespace Stockfish {
 
@@ -57,10 +57,6 @@ struct StateInfo {
   Bitboard   checkSquares[PIECE_TYPE_NB];
   Piece      capturedPiece;
   int        repetition;
-
-  // Used by NNUE
-  Eval::NNUE::Accumulator accumulator;
-  DirtyPiece dirtyPiece;
 };
 
 
@@ -79,6 +75,10 @@ class Thread;
 
 class Position {
 public:
+
+  int accumStackHead;
+  NNUE::Accumulator accumStack[MAX_PLY];
+
   static void init();
 
   Position() = default;

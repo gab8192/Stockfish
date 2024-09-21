@@ -32,7 +32,7 @@
 #include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
-#include "nnue/evaluate_nnue.h"
+#include "nnue.h"
 
 using namespace std;
 
@@ -87,9 +87,11 @@ namespace {
     Position p;
     p.set(pos.fen(), Options["UCI_Chess960"], &states->back(), Threads.main());
 
-    Eval::NNUE::verify();
+    NNUE::Accumulator tmp;
+    tmp.refresh(pos, WHITE);
+    tmp.refresh(pos, BLACK);
 
-    sync_cout << "\n" << Eval::trace(p) << sync_endl;
+    sync_cout << NNUE::evaluate(pos, tmp) << sync_endl;
   }
 
 
@@ -283,11 +285,6 @@ void UCI::loop(int argc, char* argv[]) {
       else if (token == "compiler") sync_cout << compiler_info() << sync_endl;
       else if (token == "export_net")
       {
-          std::optional<std::string> filename;
-          std::string f;
-          if (is >> skipws >> f)
-              filename = f;
-          Eval::NNUE::save_eval(filename);
       }
       else if (token == "--help" || token == "help" || token == "--license" || token == "license")
           sync_cout << "\nStockfish is a powerful chess engine for playing and analyzing."
