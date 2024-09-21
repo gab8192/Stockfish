@@ -84,14 +84,13 @@ namespace {
   void trace_eval(Position& pos) {
 
     StateListPtr states(new std::deque<StateInfo>(1));
-    Position p;
-    p.set(pos.fen(), Options["UCI_Chess960"], &states->back(), Threads.main());
-
+    
     NNUE::Accumulator tmp;
     tmp.refresh(pos, WHITE);
     tmp.refresh(pos, BLACK);
 
-    sync_cout << NNUE::evaluate(pos, tmp) << sync_endl;
+    Value eval = NNUE::evaluate(pos, tmp);
+    sync_cout << eval << sync_endl;
   }
 
 

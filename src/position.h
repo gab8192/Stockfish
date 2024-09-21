@@ -77,13 +77,19 @@ class Position {
 public:
 
   int accumStackHead;
-  NNUE::Accumulator accumStack[MAX_PLY];
+  NNUE::Accumulator* accumStack;
 
   static void init();
 
-  Position() = default;
+  Position() {
+    accumStack = new NNUE::Accumulator[MAX_PLY];
+  }
   Position(const Position&) = delete;
   Position& operator=(const Position&) = delete;
+
+  ~Position() {
+    delete[] accumStack;
+  }
 
   // FEN string input/output
   Position& set(const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th);
