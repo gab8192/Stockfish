@@ -38,11 +38,11 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
-ifeq ($(target_windows),yes)
-	EXE = stockfish.exe
-else
-	EXE = stockfish
-endif
+# ifeq ($(target_windows),yes)
+# 	EXE = stockfish.exe
+# else
+# 	EXE = stockfish
+# endif
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -108,7 +108,7 @@ VPATH = syzygy:nnue:nnue/features
 ### 2.1. General and architecture defaults
 
 ifeq ($(ARCH),)
-   ARCH = x86-64-modern
+   ARCH = x86-64-avx2
    help_skip_sanity = yes
 endif
 # explicitly check for the list of supported architectures (as listed with make help),
@@ -759,6 +759,10 @@ endif
 ### Section 4. Public Targets
 ### ==========================================================================
 
+CXXFLAGS += -DEvalFileDefaultName=\"$(EVALFILE)\"
+
+build: config-sanity
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
 
 help:
 	@echo ""
@@ -840,9 +844,6 @@ endif
 	gcc-profile-use gcc-profile-make \
 	clang-profile-use clang-profile-make FORCE
 
-build: net config-sanity
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
-
 profile-build: net config-sanity objclean profileclean
 	@echo ""
 	@echo "Step 1/4. Building instrumented executable ..."
@@ -870,42 +871,6 @@ install:
 clean: objclean profileclean
 	@rm -f .depend *~ core
 
-# evaluation network (nnue)
-net:
-	$(eval nnuenet := $(shell grep EvalFileDefaultName evaluate.h | grep define | sed 's/.*\(nn-[a-z0-9]\{12\}.nnue\).*/\1/'))
-	@echo "Default net: $(nnuenet)"
-	$(eval nnuedownloadurl1 := https://tests.stockfishchess.org/api/nn/$(nnuenet))
-	$(eval nnuedownloadurl2 := https://github.com/official-stockfish/networks/raw/master/$(nnuenet))
-	$(eval curl_or_wget := $(shell if hash curl 2>/dev/null; then echo "curl -skL"; elif hash wget 2>/dev/null; then echo "wget -qO-"; fi))
-	@if [ "x$(curl_or_wget)" = "x" ]; then \
-	    echo "Neither curl nor wget is installed. Install one of these tools unless the net has been downloaded manually"; \
-        fi
-	$(eval shasum_command := $(shell if hash shasum 2>/dev/null; then echo "shasum -a 256 "; elif hash sha256sum 2>/dev/null; then echo "sha256sum "; fi))
-	@if [ "x$(shasum_command)" = "x" ]; then \
-            echo "shasum / sha256sum not found, skipping net validation"; \
-        fi
-	@for nnuedownloadurl in "$(nnuedownloadurl1)" "$(nnuedownloadurl2)"; do \
-	   if test -f "$(nnuenet)"; then \
-	      echo "$(nnuenet) available."; \
-	   else \
-	      if [ "x$(curl_or_wget)" != "x" ]; then \
-                 echo "Downloading $${nnuedownloadurl}"; $(curl_or_wget) $${nnuedownloadurl} > $(nnuenet);\
-              else \
-                 echo "No net found and download not possible"; exit 1;\
-	      fi; \
-	   fi; \
-	   if [ "x$(shasum_command)" != "x" ]; then \
-	      if [ "$(nnuenet)" != "nn-"`$(shasum_command) $(nnuenet) | cut -c1-12`".nnue" ]; then \
-	         echo "Removing failed download"; rm -f $(nnuenet); \
-	      else \
-	         echo "Network validated"; break; \
-	      fi; \
-	   fi; \
-	done
-	@if ! test -f "$(nnuenet)"; then \
-	    echo "Failed to download $(nnuenet)."; \
-	fi
-
 # clean binaries and objects
 objclean:
 	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
@@ -929,7 +894,7 @@ default:
 
 all: $(EXE) .depend
 
-config-sanity: net
+config-sanity:
 	@echo ""
 	@echo "Config:"
 	@echo "debug: '$(debug)'"

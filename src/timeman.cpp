@@ -42,7 +42,7 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   if (limits.time[us] == 0)
       return;
 
-  TimePoint moveOverhead    = TimePoint(Options["Move Overhead"]);
+  TimePoint moveOverhead    = TimePoint(Options["MoveOverhead"]);
   TimePoint slowMover       = TimePoint(Options["Slow Mover"]);
   TimePoint npmsec          = TimePoint(Options["nodestime"]);
 
