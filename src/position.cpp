@@ -683,6 +683,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   assert(is_ok(m));
   assert(&newSt != st);
 
+  NNUE::Accumulator& newAcc = accumStack[++accumStackHead];
+  DirtyPieces& dp = newAcc.dirtyPieces;
+
   thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
   Key k = st->key ^ Zobrist::side;
 
@@ -716,7 +719,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       assert(captured == make_piece(us, ROOK));
 
       Square rfrom, rto;
-      do_castling<true>(us, from, to, rfrom, rto);
+      do_castling<true>(us, from, to, rfrom, rto, &dp);
 
       k ^= Zobrist::psq[captured][rfrom] ^ Zobrist::psq[captured][rto];
       captured = NO_PIECE;
@@ -749,6 +752,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       // Update board and piece lists
       remove_piece(capsq);
 
+      dp.sub1 = {capsq, captured};
+
       // Update material hash key and prefetch access to materialTable
       k ^= Zobrist::psq[captured][capsq];
       st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
@@ -780,6 +785,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   if (type_of(m) != CASTLING)
   {
       move_piece(from, to);
+      dp.sub0 = {from, pc};
+      dp.add0 = {to, pc};
+      dp.type = captured ? DirtyPieces::CAPTURE : DirtyPieces::NORMAL;
   }
 
   // If the moving piece is a pawn do some special extra work
@@ -802,6 +810,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
           remove_piece(to);
           put_piece(promotion, to);
+
+          dp.add0 = {to, promotion};
 
           // Update hash keys
           k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
@@ -853,6 +863,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       }
   }
 
+  for (Color side = WHITE; side <= BLACK; side = Color(side+1)) {
+    newAcc.updated[side] = false;
+    newAcc.kings[side] = square<KING>(side);
+  }
+
   assert(pos_is_ok());
 }
 
@@ -863,6 +878,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 void Position::undo_move(Move m) {
 
   assert(is_ok(m));
+
+  --accumStackHead;
 
   sideToMove = ~sideToMove;
 
@@ -888,7 +905,7 @@ void Position::undo_move(Move m) {
   if (type_of(m) == CASTLING)
   {
       Square rfrom, rto;
-      do_castling<false>(us, from, to, rfrom, rto);
+      do_castling<false>(us, from, to, rfrom, rto, nullptr);
   }
   else
   {
@@ -924,7 +941,7 @@ void Position::undo_move(Move m) {
 /// Position::do_castling() is a helper used to do/undo a castling move. This
 /// is a bit tricky in Chess960 where from/to squares can overlap.
 template<bool Do>
-void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto) {
+void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto, DirtyPieces* dp) {
 
   bool kingSide = to > from;
   rfrom = to; // Castling is encoded as "king captures friendly rook"
@@ -937,6 +954,14 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
   board[Do ? from : to] = board[Do ? rfrom : rto] = NO_PIECE; // Since remove_piece doesn't do this for us
   put_piece(make_piece(us, KING), Do ? to : from);
   put_piece(make_piece(us, ROOK), Do ? rto : rfrom);
+
+  if (Do) {
+    dp->type = DirtyPieces::CASTLING;
+    dp->sub0 = {from, make_piece(us, KING)};
+    dp->add0 = {to, make_piece(us, KING)};
+    dp->sub1 = {rfrom, make_piece(us, ROOK)};
+    dp->add1 = {rto, make_piece(us, ROOK)};
+  }
 }
 
 

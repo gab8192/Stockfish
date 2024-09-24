@@ -281,6 +281,10 @@ void Thread::search() {
         rootPos.accumStack[0].kings[side] = rootPos.square<KING>(side);
     }
 
+     for (int i = 0; i < 2; i++)
+        for (int j = 0; j < NNUE::KingBuckets; j++)
+          finny[i][j].reset();
+
   std::memset(ss-7, 0, 10 * sizeof(Stack));
   for (int i = 7; i > 0; --i)
   {
