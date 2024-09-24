@@ -273,6 +273,14 @@ void Thread::search() {
   Color us = rootPos.side_to_move();
   int iterIdx = 0;
 
+    rootPos.accumStack = this->accumStack;
+
+    rootPos.accumStackHead = 0;
+    for (Color side = WHITE; side <= BLACK; side = Color(side+1)) {
+        rootPos.accumStack[0].refresh(rootPos, side);
+        rootPos.accumStack[0].kings[side] = rootPos.square<KING>(side);
+    }
+
   std::memset(ss-7, 0, 10 * sizeof(Stack));
   for (int i = 7; i > 0; --i)
   {
@@ -504,6 +512,69 @@ void Thread::search() {
 
 namespace {
 
+  void refreshAccumulator(Position& pos, NNUE::Accumulator& acc, Color side) {
+    const Square king = pos.square<KING>(side);
+    const int bucket = NNUE::KingBucketsScheme[relative_square(side, king)];
+    NNUE::FinnyEntry& entry = pos.this_thread()->finny[file_of(king) >= FILE_E][bucket];
+
+    for (Color c = WHITE; c <= BLACK; c = Color(c+1)) {
+      for (PieceType pt = PAWN; pt <= KING; ++pt) {
+        const Bitboard oldBB = entry.byColorBB[side][c] & entry.byPieceBB[side][pt];
+        const Bitboard newBB = pos.pieces(c, pt);
+        Bitboard toRemove = oldBB & ~newBB;
+        Bitboard toAdd = newBB & ~oldBB;
+
+        while (toRemove) {
+          Square sq = pop_lsb(toRemove);
+          entry.acc.removePiece(king, side, make_piece(c, pt), sq);
+        }
+        while (toAdd) {
+          Square sq = pop_lsb(toAdd);
+          entry.acc.addPiece(king, side, make_piece(c, pt), sq);
+        }
+      }
+    }
+    acc.updated[side] = true;
+    memcpy(acc.colors[side], entry.acc.colors[side], sizeof(acc.colors[0]));
+    memcpy(entry.byColorBB[side], pos.byColorBB, sizeof(entry.byColorBB[0]));
+    memcpy(entry.byPieceBB[side], pos.byTypeBB, sizeof(entry.byPieceBB[0]));
+  }
+
+  Value doEvaluation(Position& pos) {
+    NNUE::Accumulator& head = pos.accumStack[pos.accumStackHead];
+
+    for (Color side = WHITE; side <= BLACK; side = Color(side+1)) {
+      if (head.updated[side])
+        continue;
+
+      const Square king = head.kings[side];
+      NNUE::Accumulator* iter = &head;
+      while (true) {
+        iter--;
+
+        if (NNUE::needRefresh(side, iter->kings[side], king)) {
+          refreshAccumulator(pos, head, side);
+          break;
+        }
+
+        if (iter->updated[side]) {
+          NNUE::Accumulator* lastUpdated = iter;
+          while (lastUpdated != &head) {
+            (lastUpdated+1)->doUpdates(king, side, *lastUpdated);
+            lastUpdated++;
+          }
+          break;
+        }
+      }
+    }
+
+    return Eval::evaluate(pos);
+  }
+
+  Value scaleOnHMC(Position& pos, Value eval) {
+    return (eval * (200 - pos.rule50_count())) / 200;
+  }
+
   // search<>() is the main search function for both PV and non-PV nodes
 
   template <NodeType nodeType>
@@ -570,7 +641,7 @@ namespace {
         if (   Threads.stop.load(std::memory_order_relaxed)
             || pos.is_draw(ss->ply)
             || ss->ply >= MAX_PLY)
-            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos)
+            return (ss->ply >= MAX_PLY && !ss->inCheck) ? scaleOnHMC(pos, doEvaluation(pos))
                                                         : value_draw(pos.this_thread());
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
@@ -717,7 +788,7 @@ namespace {
         // Never assume anything about values stored in TT
         ss->staticEval = eval = tte->eval();
         if (eval == VALUE_NONE)
-            ss->staticEval = eval = evaluate(pos);
+            ss->staticEval = eval = scaleOnHMC(pos, doEvaluation(pos));
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -726,7 +797,7 @@ namespace {
     }
     else
     {
-        ss->staticEval = eval = evaluate(pos);
+        ss->staticEval = eval = scaleOnHMC(pos, doEvaluation(pos));
         // Save static evaluation into transposition table
         tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
@@ -1427,7 +1498,7 @@ moves_loop: // When in check, search starts here
     // Step 2. Check for an immediate draw or maximum ply reached
     if (   pos.is_draw(ss->ply)
         || ss->ply >= MAX_PLY)
-        return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
+        return (ss->ply >= MAX_PLY && !ss->inCheck) ? scaleOnHMC(pos, doEvaluation(pos)) : VALUE_DRAW;
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
@@ -1460,7 +1531,7 @@ moves_loop: // When in check, search starts here
         {
             // Never assume anything about values stored in TT
             if ((ss->staticEval = bestValue = tte->eval()) == VALUE_NONE)
-                ss->staticEval = bestValue = evaluate(pos);
+                ss->staticEval = bestValue = scaleOnHMC(pos, doEvaluation(pos));
 
             // ttValue can be used as a better position evaluation (~13 Elo)
             if (    ttValue != VALUE_NONE
@@ -1469,7 +1540,7 @@ moves_loop: // When in check, search starts here
         }
         else
             // In case of null move search use previous static eval with a different sign
-            ss->staticEval = bestValue = (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
+            ss->staticEval = bestValue = (ss-1)->currentMove != MOVE_NULL ? scaleOnHMC(pos, doEvaluation(pos))
                                                                           : -(ss-1)->staticEval;
 
         // Stand pat. Return immediately if static value is at least beta

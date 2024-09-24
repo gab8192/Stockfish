@@ -71,6 +71,10 @@ public:
   ButterflyHistory mainHistory;
   CapturePieceToHistory captureHistory;
   ContinuationHistory continuationHistory[2][2];
+
+  NNUE::Accumulator accumStack[MAX_PLY + 10];
+
+  NNUE::FinnyTable finny;
 };
 
 

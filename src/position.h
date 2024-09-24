@@ -79,16 +79,17 @@ public:
   int accumStackHead;
   NNUE::Accumulator* accumStack;
 
+  Bitboard byTypeBB[PIECE_TYPE_NB];
+  Bitboard byColorBB[COLOR_NB];
+
   static void init();
 
   Position() {
-    accumStack = new NNUE::Accumulator[MAX_PLY];
   }
   Position(const Position&) = delete;
   Position& operator=(const Position&) = delete;
 
   ~Position() {
-    delete[] accumStack;
   }
 
   // FEN string input/output
@@ -197,8 +198,6 @@ private:
 
   // Data members
   Piece board[SQUARE_NB];
-  Bitboard byTypeBB[PIECE_TYPE_NB];
-  Bitboard byColorBB[COLOR_NB];
   int pieceCount[PIECE_NB];
   int castlingRightsMask[SQUARE_NB];
   Square castlingRookSquare[CASTLING_RIGHT_NB];
