@@ -102,23 +102,23 @@ struct NetworkArchitecture {
         struct alignas(CacheLineSize) Buffer {
             alignas(CacheLineSize) typename decltype(fc_0)::OutputBuffer fc_0_out;
             alignas(CacheLineSize) typename decltype(ac_sqr_0)::OutputType
-              ac_sqr_0_out[ceil_to_multiple<IndexType>(FC_0_OUTPUTS * 2, 32)];
-            alignas(CacheLineSize) typename decltype(ac_0)::OutputBuffer ac_0_out;
+              ac_0_out[ceil_to_multiple<IndexType>(FC_0_OUTPUTS * 2, 32)];
             alignas(CacheLineSize) typename decltype(fc_1)::OutputBuffer fc_1_out;
             alignas(CacheLineSize) typename decltype(ac_1)::OutputBuffer ac_1_out;
             alignas(CacheLineSize) typename decltype(fc_2)::OutputBuffer fc_2_out;
 
-            Buffer() { std::memset(ac_sqr_0_out, 0, sizeof(ac_sqr_0_out)); }
+            Buffer() {
+                // No zero-initialization needed for ac_o_out: affine transform
+                // will not process data past FC_0_OUT * 2
+                 }
         };
 
         Buffer buffer;
 
         fc_0.propagate(transformedFeatures, buffer.fc_0_out, nnzInfo);
-        ac_sqr_0.propagate(buffer.fc_0_out, buffer.ac_sqr_0_out);
-        ac_0.propagate(buffer.fc_0_out, buffer.ac_0_out);
-        std::memcpy(buffer.ac_sqr_0_out + FC_0_OUTPUTS, buffer.ac_0_out,
-                    FC_0_OUTPUTS * sizeof(typename decltype(ac_0)::OutputType));
-        fc_1.propagate(buffer.ac_sqr_0_out, buffer.fc_1_out);
+        ac_sqr_0.propagate(buffer.fc_0_out, buffer.ac_0_out);
+        ac_0.propagate(buffer.fc_0_out, buffer.ac_0_out + FC_0_OUTPUTS);
+        fc_1.propagate(buffer.ac_0_out, buffer.fc_1_out);
         ac_1.propagate(buffer.fc_1_out, buffer.ac_1_out);
         fc_2.propagate(buffer.ac_1_out, buffer.fc_2_out);
 
